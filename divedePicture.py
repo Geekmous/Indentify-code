@@ -15,8 +15,9 @@ def devide(Source, FileFlod):
 
 
 file_list = os.listdir("./data")
-#devide("./data/100.jpeg", "./processed")
+if not os.path.exists("./processed"):
+	os.mkdir("./processed")
 for item in file_list[1:] :
 	print item
-	devide("./data/" + item, "./processe")
+	devide("./data/" + item, "./processed")
 	

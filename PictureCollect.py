@@ -4,8 +4,11 @@ import httplib2
 import re
 import md5
 import time
+import os
 Path = "./data/"
-
+if not os.path.exists(Path):
+	os.mkdir(Path)
+	
 md = md5.new()
 
 for i in xrange(10000):

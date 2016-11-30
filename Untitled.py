@@ -2,7 +2,6 @@
 
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 import lasagne
 import theano
 from theano import tensor as T
@@ -86,12 +85,8 @@ def load_dataset():
 	return X_train, y_train, X_val, y_val, X_test, y_test
 
 def build_cnn(input_var=None):
-	# As a third model, we'll create a CNN of two convolution + pooling stages
-	# and a fully-connected hidden layer in front of the output layer.
-
-	# Input layer, as usual:
-	network = lasagne.layers.InputLayer(shape=(None, 1, 30, 30),
-										input_var=input_var)
+	
+	network = lasagne.layers.InputLayer((None, 1, 30, 30), input_var=input_var)
 	# This time we do not apply input dropout, as it tends to work less well
 	# for convolutional layers.
 
@@ -143,7 +138,7 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 		yield inputs[excerpt], targets[excerpt]
 		
 def NetTrain(network ,X_train, y_train, X_val, y_val):
-	num_epochs = 100
+	num_epochs = 50
 # Create a loss expression for training, i.e., a scalar objective we want
 	# to minimize (for our multi-class problem, it is the cross-entropy loss):
 	
@@ -229,6 +224,7 @@ def NetTrain(network ,X_train, y_train, X_val, y_val):
 
 print("Loading data...")
 X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+
 print(X_train.shape)
 
 # Prepare Theano variables for inputs and targets
