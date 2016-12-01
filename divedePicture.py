@@ -12,8 +12,7 @@ def devide(Source, FileFlod):
 	cv.imwrite(FileFlod + "/" + filename + "one.jpeg", img[:, 20:50, :])
 	cv.imwrite(FileFlod + "/" + filename + "tow.jpeg", img[:, 40:70, :])
 	cv.imwrite(FileFlod + "/" + filename + "three.jpeg", img[:, 70:100, :])
-
-
+	
 file_list = os.listdir("./data")
 if not os.path.exists("./processed"):
 	os.mkdir("./processed")

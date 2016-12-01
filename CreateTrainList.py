@@ -14,8 +14,9 @@ for index in xrange(len(label)):
 	file_list = os.listdir(Path + "/" + i)
 	#print file_list
 	for file_name in file_list[1:]:
-		f.write(Path + "/" + i + "/" + file_name + " " + str(index))
-		f.write("\n")
+		if file_name.find('_') < 0:
+			f.write(Path + "/" + i + "/" + file_name + " " + str(index))
+			f.write("\n")
 		
 f.close()
 Path = "./Valid"
@@ -28,7 +29,8 @@ for index in xrange(len(label)):
 	file_list = os.listdir(Path + "/" + i)
 	#print file_list
 	for file_name in file_list[1:]:
-		f.write(Path + "/" + i + "/" + file_name + " " + str(index))
-		f.write("\n")
+		if file_name.find('_') < 0:
+			f.write(Path + "/" + i + "/" + file_name + " " + str(index))
+			f.write("\n")
 		
 f.close()
