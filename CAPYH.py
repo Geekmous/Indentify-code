@@ -249,7 +249,7 @@ class CNN():
             start_time = time.time()
             for batch in iterate_minibatches(X_train, y_train, 16, shuffle=True):
                 inputs, targets = batch
-                print "inputs.shape = ", inputs.shape
+                #print "inputs.shape = ", inputs.shape
                 #print "targets.shape = ", targets.shape
                 err, acc  = train_fn(inputs, targets)
                 train_err += err
@@ -365,7 +365,7 @@ def run():
 
 	print("Building model and compiling functions...")
 	
-	network = CNN()
+	network = CNN(1, 30, 120)
 	if flag_readParam:
 		network.setParamPath("param.txt")
     
@@ -380,7 +380,7 @@ def run():
 	# After training, we compute and print the test error:
 
 if __name__ == "__main__":
-    unittest.main()
-	#run()
+    #unittest.main()
+	run()
 	
 	
