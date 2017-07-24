@@ -246,7 +246,7 @@ class CNN():
             train_batches = 0
             train_acc = 0
             start_time = time.time()
-            for batch in iterate_minibatches(X_train, y_train, 128, shuffle=True):
+            for batch in iterate_minibatches(X_train, y_train, 16, shuffle=True):
                 inputs, targets = batch
                 print "inputs.shape = ", inputs.shape
                 #print "targets.shape = ", targets.shape
@@ -334,7 +334,7 @@ class CNN_TEST(unittest.TestCase):
     def test_train(self):
         X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
         cnn = CNN(1, 30, 120)
-        cnn.NetTrain(X_train[:128, :, :, :], y_train[:128, :], X_val, y_val, iterator = 1)
+        cnn.NetTrain(X_train[:32, :, :, :], y_train[:32, :], X_val, y_val, iterator = 1)
 
         p = cnn.predict(X_train)
         strs = []
