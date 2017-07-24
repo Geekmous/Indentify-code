@@ -25,7 +25,7 @@ def getData():
         index += 1
 
     Path = "./t"
-    output_num = 10
+    output_num = 6
 
     f = open("./train.txt")
     labels = []
@@ -90,13 +90,17 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 			excerpt = slice(start_idx, start_idx + batchsize)
 		yield inputs[excerpt], targets[excerpt]
 class CNN():
-    def __init__(self):
+    def __init__(self, channel = 3, height = 1, width = 1, Most_char = 6):
         self.output = None
         self.input_var = T.dtensor4('inputs')
         self.target_var = T.dmatrix('targets')
         self.isSetParam = False
+        self.channel = channel
+        self.height = height
+        self.width = width
+        self.output_num = Most_char
 
-    def setParamPath(path):
+    def setParamPath(self, path):
         self.ParamPath = path
         self.isSetparam = True
         
@@ -104,6 +108,14 @@ class CNN():
         pass
 
     def predict(self, X):
+        self.build_cnn()
+
+        if self.isSetParam:
+            try:
+                self.setParam(self.output,open(self.ParamPath))
+            except Exception, e:
+                print e
+
         predict_fn = theano.function([self.input_var, ], map(lasagne.layers.get_output, self.output))
         prediction = predict_fn(X)
         strs = []
@@ -126,11 +138,11 @@ class CNN():
     def restore(self, path):
         pass
 
-    def build_cnn(self, height = 30, width = 120, channel = 1, output_num = 10):
+    def build_cnn(self):
         input_var = self.input_var
         target_var = self.target_var
-
-        network = lasagne.layers.InputLayer((None, channel, height, width), input_var = input_var)
+        output_num = self.output_num
+        network = lasagne.layers.InputLayer((None, self.channel, self.height, self.width), input_var = input_var)
         network = lasagne.layers.Conv2DLayer(network, num_filters= 32, filter_size=(3, 3), pad = 1, stride = 1,nonlinearity=lasagne.nonlinearities.rectify, W = lasagne.init.Constant(0.))
         network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2), stride = 2)
         network = lasagne.layers.Conv2DLayer(
@@ -164,9 +176,8 @@ class CNN():
 		
     def NetTrain(self, X_train, y_train, X_val, y_val, learning_rate = 0.01, momentum = 0.9, iterator = 200, output_num = 10):
         #define network
-        num, channel, height, width = X_train.shape
-
-        self.build_cnn(height, width, channel, output_num)
+        
+        self.build_cnn()
         input_var = self.input_var
         target_var = self.target_var
         output = self.output 
@@ -317,12 +328,12 @@ class CNN():
 
 class CNN_TEST(unittest.TestCase):
     def test_create(self):
-        cnn = CNN()
+        cnn = CNN(1, 30, 120)
         cnn.build_cnn()
 
     def test_train(self):
         X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
-        cnn = CNN()
+        cnn = CNN(1, 30, 120)
         cnn.NetTrain(X_train[:128, :, :, :], y_train[:128, :], X_val, y_val, iterator = 1)
 
         p = cnn.predict(X_train)
@@ -339,7 +350,12 @@ class CNN_TEST(unittest.TestCase):
             strs.append(string)
 
         print p
-            
+    def test_predict(self):
+        X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+        cnn = CNN(1, 30, 120)
+        cnn.setParamPath("./param.txt")
+        p = cnn.predict(X_train)
+
 def run():
 	flag_readParam = False
 	print("Loading data...")
