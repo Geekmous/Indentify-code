@@ -40,6 +40,7 @@ def getData():
             a[i * 37 + 36] = 1
 
         data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        #print data.shape
         data = np.reshape(data, (1, 30, 120))
         data = data / 256.0
         labels.append(a)
@@ -174,14 +175,14 @@ class CNN():
 
 
 		
-    def NetTrain(self, X_train, y_train, X_val, y_val, learning_rate = 0.01, momentum = 0.9, iterator = 200, output_num = 10):
+    def NetTrain(self, X_train, y_train, X_val, y_val, learning_rate = 0.01, momentum = 0.9, iterator = 200):
         #define network
         
         self.build_cnn()
         input_var = self.input_var
         target_var = self.target_var
         output = self.output 
-
+        output_num = self.output_num
         if self.isSetParam:
             try:
                 self.setParam(self.output,open(self.ParamPath))
