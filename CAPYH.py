@@ -90,6 +90,8 @@ def iterate_minibatches(inputs, targets, batchsize, shuffle=False):
 		else:
 			excerpt = slice(start_idx, start_idx + batchsize)
 		yield inputs[excerpt], targets[excerpt]
+
+
 class CNN():
     def __init__(self, channel = 3, height = 1, width = 1, Most_char = 6):
         self.output = None
@@ -200,7 +202,7 @@ class CNN():
         loss = 0
         for i in range(output_num):
             loss += lasagne.objectives.categorical_crossentropy(predict[i], target[i])
-        loss = loss.mean()
+        loss = (loss / output_num).mean()
         train_acc = 1
         for i in range(output_num):
             train_acc *= T.eq(T.argmax(predict[i], axis = 1), T.argmax(target[i], axis = 1))
@@ -224,8 +226,7 @@ class CNN():
             test_predict.append( lasagne.layers.get_output(output[i], deterministic=True) )
             test_loss += lasagne.objectives.categorical_crossentropy(test_predict[i],target[i])
 
-        
-        test_loss = test_loss.mean()
+        test_loss = (test_loss / output_num).mean()
         # As a bonus, also create an expression for the classification accuracy:
         test_acc = 1
         for i in range(output_num):
@@ -370,12 +371,12 @@ def run():
 		network.setParamPath("param.txt")
     
 
-	network.NetTrain(X_train, y_train, X_val, y_val, iterator = 1)
+	network.NetTrain(X_train, y_train, X_val, y_val, iterator = 20)
 
     #network.saveParam("param.txt")
 	#param_value = lasagne.layers.get_all_param_values(network, )
 
-	network.saveParam(param_value, "param.txt")
+	network.saveParam("param.txt")
 	
 	# After training, we compute and print the test error:
 
