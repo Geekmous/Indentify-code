@@ -2,12 +2,8 @@
 
 import cv2
 import numpy as np
-import lasagne
-import theano
-from theano import tensor as T
 import time
 import os
-import cPickle as pickle
 import random
 import unittest
 import tensorflow as tf
@@ -25,7 +21,7 @@ def getData():
         index += 1
 
     Path = "./t"
-    output_num = 6
+    output_num = 4
 
     f = open("./train.txt")
     labels = []
@@ -107,8 +103,8 @@ def max_pool(x):
     return tf.nn.max_pool(x, ksize = [1, 2, 2, 1], strides = [1, 2, 2, 1], padding = 'SAME')
 
 def output(x, W, b):
-    x = tf.nn.dropout(x, 0.5)
-    return tf.nn.softmax(tf.matmul(x, W) + b)
+    x = tf.nn.dropout(x, 0.9)
+    return tf.nn.softmax(tf.nn.sigmoid(tf.matmul(x, W) + b))
 
 
 class CNN():
@@ -121,63 +117,115 @@ class CNN():
         self.width = width
         self.output_num = Most_char
 
-        self.sess = tf.Session()
-
-
+        self.sess = tf.InteractiveSession()
         self.graph = tf.Graph()
         self.graph.as_default()
-        #input size None 30 120 1
-        self.input_var = tf.placeholder(tf.float32, [None, self.height, self.width, self.channel])
-        self.target_var = tf.placeholder(tf.float32, [None, 37 * 6])
+            #input size None 30 120 1
+        with tf.name_scope("input"):
+            self.input_var = tf.placeholder(tf.float32, [None, self.height, self.width, self.channel])
+            self.target_var = tf.placeholder(tf.float32, [None, 37 * 4])
+            tf.image_summary('input', self.input_var, 10)
 
-        self.W1 = weight_vaiable([3, 3, 1, 128])
-        b1 = bias_vaiable([128])
+        with tf.name_scope("conv1"):
+            self.W1 = weight_vaiable([3, 3, 1, 128])
+            b1 = bias_vaiable([128])
+            self.conv1 = conv2DLayer(self.input_var, self.W1) + b1
+            self.conv1 = tf.nn.relu(self.conv1)
+            self.max_pool1 = max_pool(self.conv1)
 
-        self.conv1 = conv2DLayer(self.input_var, self.W1) + b1
-        self.conv1 = tf.nn.relu(self.conv1)
-        self.max_pool1 = max_pool(self.conv1)
-        W2 = weight_vaiable([3, 3, 128, 128])
-        b2 = bias_vaiable([128])
-        self.conv2 = conv2DLayer(self.max_pool1, W2) + b2
-        self.conv2 = tf.nn.relu(self.conv2)
-        self.max_pool2 = max_pool(self.conv2)
-        #None 16 64 128
-        length = 8 * 32 * 128
-        self.reshape = tf.reshape(self.max_pool2,[-1, length])
+        with tf.name_scope("conv2"):
+            W2 = weight_vaiable([3, 3, 128, 64])
+            b2 = bias_vaiable([64])
+            self.conv2 = conv2DLayer(self.max_pool1, W2) + b2
+            self.conv2 = tf.nn.relu(self.conv2)
+            self.max_pool2 = max_pool(self.conv2)
 
-        self.output1 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        self.output2 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        self.output3 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        self.output4 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        self.output5 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        self.output6 = output(self.reshape, weight_vaiable((length, 37)), bias_vaiable([37]))
-        outputs = [self.output1, self.output2,self.output3,self.output4,self.output5,self.output6]
-        self.output = tf.concat(1, outputs)
+        with tf.name_scope('conv3'):
+            W3 = weight_vaiable([3, 3, 64, 32])
+            b3 = bias_vaiable([32])
+
+            self.conv3 = conv2DLayer(self.max_pool2, W3) + b3
+            self.conv3 = tf.nn.relu(self.conv3)
+            self.max_pool3 = max_pool(self.conv3)
+        #None 4 16 32
+        length = 4 * 16 * 32
+        with tf.name_scope("output"):
+            self.reshape = tf.reshape(self.max_pool3,[-1, length])
+            out_num = 1024
+            h_w = weight_vaiable([length, out_num])
+            h_b = bias_vaiable([out_num])
+
+            self.hidden = tf.nn.relu(tf.matmul(self.reshape, h_w) + h_b)
+
+            h_w1 = weight_vaiable([out_num, out_num])
+            h_b1= bias_vaiable([out_num])
+
+            self.hidden1 = tf.nn.relu(tf.matmul(self.hidden, h_w1) + h_b1)
+
+            self.output1 = output(self.hidden1, weight_vaiable((out_num, 37)), bias_vaiable([37]))
+            self.output2 = output(self.hidden1, weight_vaiable((out_num, 37)), bias_vaiable([37]))
+            self.output3 = output(self.hidden1, weight_vaiable((out_num, 37)), bias_vaiable([37]))
+            self.output4 = output(self.hidden1, weight_vaiable((out_num, 37)), bias_vaiable([37]))
+
+            outputs = [self.output1, self.output2,self.output3,self.output4]
+            self.output = tf.concat(1, outputs)
+            tf.histogram_summary('output', self.output)
+
+        with tf.name_scope("loss"):
+            self.corss_entropy = tf.reduce_mean(-tf.reduce_sum(self.target_var[:, :37] * tf.log(self.output1), 1))
+            tf.scalar_summary('train/loss', self.corss_entropy)
+
+        with tf.name_scope("accuracy"):
+            with tf.name_scope("correct_prediction"):
+                correct1 = tf.equal(tf.argmax(self.output1, 1), tf.argmax(self.target_var[:,:37], 1))
+                correct2 = tf.equal(tf.argmax(self.output2, 1), tf.argmax(self.target_var[:,37:37 * 2], 1))
+                correct3 = tf.equal(tf.argmax(self.output3, 1), tf.argmax(self.target_var[:,37 * 2:37 * 3], 1))
+                correct4 = tf.equal(tf.argmax(self.output4, 1), tf.argmax(self.target_var[:,37 * 3:37 * 4], 1))
+                correct = tf.cast(correct1, tf.int32) * tf.cast(correct2, tf.int32) * tf.cast(correct3, tf.int32) * tf.cast(correct4, tf.int32)
+
+            with tf.name_scope("accuracy"):
+                self.accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+            
+            tf.scalar_summary("accuracy", self.accuracy)
+
+        self.op = tf.train.AdamOptimizer(1e-3).minimize(self.corss_entropy)
+        self.merged = tf.merge_all_summaries()
         
-        self.corss_entropy = (tf.reduce_mean(tf.pow(self.output - self.target_var, 2)))
-        self.op = tf.train.GradientDescentOptimizer(1e-6).minimize(self.corss_entropy)
+        tf.initialize_all_variables().run()
+        #TO-DO: how to add the graph def into the summary
+        self.train_writer = tf.train.SummaryWriter("./summary", self.sess.graph_def)
+        #
+        
 
- 
-        self.sess.run(tf.initialize_all_variables())
+
 
         
     def test(self, X, y):
         num, channel, height, width = X.shape
-        print X.shape
-        print num, channel, height, width
+        #print X.shape
+        #print num, channel, height, width
         X = np.reshape(X, newshape = (num, height, width, channel))
-        print self.sess.run(self.reshape, feed_dict = {self.input_var : X, self.target_var : y})
-        print self.sess.run(self.output1, feed_dict = {self.input_var : X, self.target_var : y})
-        print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
 
-        for i in range(100):
-            self.sess.run(self.op, feed_dict = {self.input_var : X, self.target_var : y})
-            if i % 10 == 0:
-                print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
-   
-        print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
-
+        #print self.sess.run(self.reshape, feed_dict = {self.input_var : X, self.target_var : y})
+        #print self.sess.run(self.output1, feed_dict = {self.input_var : X, self.target_var : y})
+        #print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
         
+        saver = tf.train.Saver()
+        
+
+        for i in range(1):
+            _, summary = self.sess.run([self.op, self.merged], feed_dict = {self.input_var : X, self.target_var : y})
+            #if i % 10 == 0:
+                #print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
+                #print self.sess.run(self.reshape, feed_dict = {self.input_var : X, self.target_var : y})
+                #print self.sess.run(self.output1, feed_dict = {self.input_var : X, self.target_var : y})
+            #summary = self.sess.run(self.merged, feed_dict= { self.input_var : X, self.target_var : y})
+            self.train_writer.add_summary(summary, i)
+        #print self.sess.run(self.corss_entropy, feed_dict = {self.input_var : X, self.target_var : y})
+
+        self.train_writer.close() 
+        saver.save(self.sess, "./model/m.ckpt")
+        return self.sess.run([self.corss_entropy, self.accuracy], feed_dict = {self.input_var : X, self.target_var : y})
         
 
     def setParamPath(self, path):
@@ -217,107 +265,12 @@ class CNN():
 
     def restore(self, path):
         pass
-
-    def build_cnn(self):
-
-
-
-        output_num = self.output_num
-        network = lasagne.layers.InputLayer((None, self.channel, self.height, self.width), input_var = input_var)
-        network = lasagne.layers.Conv2DLayer(network, num_filters= 32, filter_size=(3, 3), pad = 1, stride = 1,nonlinearity=lasagne.nonlinearities.rectify, W = lasagne.init.Constant(0.))
-        network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2), stride = 2)
-        network = lasagne.layers.Conv2DLayer(
-                network, num_filters= 32, filter_size=(3, 3), pad = 1, stride = 1,
-                nonlinearity=lasagne.nonlinearities.rectify, W = lasagne.init.Constant(0.))
-        network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2), stride = 2)
-
-        #network = lasagne.layers.Conv2DLayer(
-        #        network, num_filters= 32, filter_size=(3, 3), pad = 1, stride = 1,
-        #       nonlinearity=lasagne.nonlinearities.rectify, W = lasagne.init.Constant(0.))
-        #network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2), stride = 2)
-        
-
-        # A fully-connected layer of 256 units with 50% dropout on its inputs:
-        network = lasagne.layers.DenseLayer(
-                lasagne.layers.dropout(network, p=.5),
-                num_units= 1024 ,
-                nonlinearity=lasagne.nonlinearities.rectify, W = lasagne.init.Constant(0.))
-
-        # And, finally, the 10-unit output layer with 50% dropout on its inputs:
-        self.output = []
-        for i in range(output_num):
-            self.output.append(lasagne.layers.DenseLayer(
-                network,
-                num_units= 37,
-                nonlinearity=lasagne.nonlinearities.softmax))
-        
-
-
-
 		
     def NetTrain(self, X_train, y_train, X_val, y_val, learning_rate = 0.01, momentum = 0.9, iterator = 200):
         #define network
-        
-        self.build_cnn()
-        input_var = self.input_var
-        target_var = self.target_var
-        output = self.output 
-        output_num = self.output_num
-        if self.isSetParam:
-            try:
-                self.setParam(self.output,open(self.ParamPath))
-            except Exception, e:
-                print e
 
         num_epochs = iterator
-        
-        predict = []
-        target = []
-        for i in range(output_num):
-            predict.append(lasagne.layers.get_output(output[i]))
-            target.append( target_var[:, i * 37 : (i + 1) * 37] )
-
-        loss = 0
-        for i in range(output_num):
-            loss += lasagne.objectives.categorical_crossentropy(predict[i], target[i])
-        loss = (loss / output_num).mean()
-        train_acc = 1
-        for i in range(output_num):
-            train_acc *= T.eq(T.argmax(predict[i], axis = 1), T.argmax(target[i], axis = 1))
-        train_acc = T.mean(train_acc, dtype = theano.config.floatX)
-        # We could add some weight decay as well here, see lasagne.regularization.
-
-        # Create update expressions for training, i.e., how to modify the
-        # parameters at each training step. Here, we'll use Stochastic Gradient
-        # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
-        params = lasagne.layers.get_all_params(output, trainable=True)
-        
-        updates = lasagne.updates.nesterov_momentum(
-                loss, params, learning_rate=learning_rate, momentum = momentum)
-
-        # Create a loss expression for validation/testing. The crucial difference
-        # here is that we do a deterministic forward pass through the network,
-        # disabling dropout layers.
-        test_predict = []
-        test_loss = 0
-        for i in range(output_num):
-            test_predict.append( lasagne.layers.get_output(output[i], deterministic=True) )
-            test_loss += lasagne.objectives.categorical_crossentropy(test_predict[i],target[i])
-
-        test_loss = (test_loss / output_num).mean()
-        # As a bonus, also create an expression for the classification accuracy:
-        test_acc = 1
-        for i in range(output_num):
-            test_acc *= T.eq(T.argmax(test_predict[i], axis = 1), T.argmax(target[i], axis = 1))
-        test_acc = T.mean(test_acc, dtype = theano.config.floatX)
-
-        # Compile a function performing a training step on a mini-batch (by giving
-        # the updates dictionary) and returning the corresponding training loss:
-        train_fn = theano.function([input_var, target_var], [loss, train_acc], updates=updates)
-
-        # Compile a second function computing the validation loss and accuracy:
-        val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-        
+ 
         print("Starting training...")
         # We iterate over epochs:
         for epoch in range(num_epochs):
@@ -330,32 +283,32 @@ class CNN():
                 inputs, targets = batch
                 #print "inputs.shape = ", inputs.shape
                 #print "targets.shape = ", targets.shape
-                err, acc  = train_fn(inputs, targets)
+                err, acc = self.test(inputs, targets)
                 train_err += err
                 train_acc += acc
                 train_batches += 1
 
             # And a full pass over the validation data:
-            val_err = 0
-            val_acc = 0
-            val_batches = 0
-            for batch in iterate_minibatches(X_val, y_val, 32, shuffle=True):
-                inputs, targets = batch
-                #print "inputs.shape = ", inputs.shape
-                #print "targets.shape = ", targets.shape
-                err, acc = val_fn(inputs, targets)
-                val_err += err
-                val_acc += acc
-                val_batches += 1
+            #val_err = 0
+            #val_acc = 0
+            #val_batches = 0
+            #for batch in iterate_minibatches(X_val, y_val, 32, shuffle=True):
+            #    inputs, targets = batch
+            #    #print "inputs.shape = ", inputs.shape
+            #    #print "targets.shape = ", targets.shape
+            #    err, acc = val_fn(inputs, targets)
+            #    val_err += err
+            #    val_acc += acc
+            #    val_batches += 1
                 
             print("Epoch {} of {} took {:.3f}s".format(
                 epoch + 1, num_epochs, time.time() - start_time))
             print("  training loss:\t\t{:.6f}".format(train_err )) #'''/ train_batches'''
             print("  training accuracy:\t\t{:.2f} %".format(
             train_acc / (train_batches + 1) * 100))
-            print("  validation loss:\t\t{:.6f}".format(val_err )) #'''/ val_batches'''
-            print("  validation accuracy:\t\t{:.2f} %".format(
-                val_acc / (val_batches + 1) * 100))
+            #print("  validation loss:\t\t{:.6f}".format(val_err )) #'''/ val_batches'''
+            #print("  validation accuracy:\t\t{:.2f} %".format(
+            #    val_acc / (val_batches + 1) * 100))
         
 	
     def setParam(self, network, files):
@@ -445,12 +398,7 @@ def run():
     X_train = X_train
     network=CNN(1,32,128)
     network.test(X_train[:128, :, :, :], y_train[:128, :])
-
-	#if flag_readParam:
-	#	network.setParamPath("param.txt")
-    #
-
-#	network.NetTrain(X_train, y_train, X_val, y_val, iterator = 20)
+    network.NetTrain(X_train, y_train, X_val, y_val, iterator = 20)
 
     #network.saveParam("param.txt")
 	#param_value = lasagne.layers.get_all_param_values(network, )
